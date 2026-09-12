@@ -19,15 +19,20 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Make gradlew executable
-      run: chmod +x ./gradlew
-      working-directory: ./android_remote
+    - name: Run gradle tasks
+      uses: gradle/actions/setup-gradle@v3
+      with:
+        build-root-directory: ./android_remote
     
     - name: Build APK
       run: ./gradlew assembleRelease
       working-directory: ./android_remote
-      
+      env:
+        ANDROID_HOME: /opt/hostedtoolcache/android-sdk
+        ANDROID_SDK_ROOT: /opt/hostedtoolcache/android-sdk
+    
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: android-remote-desktop-apk
