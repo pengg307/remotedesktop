@@ -1,0 +1,40 @@
+# Android
+.build/
+.android/
+.idea/
+*.iml
+*.ipr
+*.iws
+.local
+
+# Flutter
+.dart_tool/
+.packages
+pubspec.lock
+coverage/
+*.dill
+*.html
+
+# Android Studio
+.gradle/
+local.properties
+
+# Firebase
+firebase-debug.log
+fireperf.properties
+
+# Caches
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.packages
+
+# Build outputs
+build/
+*.apk
+*.aab
+*.app
+*.ipa
+
+# OS
+.DS_Store
+Thumbs.db
