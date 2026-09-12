@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http as http';
 import 'dart:convert';
 
@@ -22,6 +21,7 @@ class RemoteDesktopApp extends StatelessWidget {
 
 class ConnectPage extends StatefulWidget {
   const ConnectPage({super.key});
+  
   @override
   State<ConnectPage> createState() => _ConnectPageState();
 }
@@ -48,7 +48,7 @@ class _ConnectPageState extends State<ConnectPage> {
       );
       if (response.statusCode == 200) {
         if (mounted) {
-          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => DesktopPage(token: token, serverUrl: serverUrl)));
+          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const DesktopPage()));
         }
       } else {
         setState(() => _error = '连接失败: ${response.statusCode}');
@@ -74,15 +74,40 @@ class _ConnectPageState extends State<ConnectPage> {
             const SizedBox(height: 24),
             const Text('输入Windows端显示的6位Token', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
             const SizedBox(height: 32),
-            TextField(controller: _tokenController, keyboardType: TextInputType.text, textCapitalization: TextCapitalization.characters,
-              decoration: const InputDecoration(labelText: 'Token', hintText: '例如: ABCD12', border: OutlineInputBorder(), prefixIcon: Icon(Icons.key)),
-              style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold)),
+            TextField(
+              controller: _tokenController,
+              keyboardType: TextInputType.text,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Token',
+                hintText: '例如: ABCD12',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.key),
+              ),
+              style: const TextStyle(fontSize: 24, letterSpacing: 8, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
-            TextField(controller: _serverUrlController, decoration: const InputDecoration(labelText: '信令服务器地址', hintText: 'http://192.168.1.100:8000', border: OutlineInputBorder(), prefixIcon: Icon(Icons.cloud))),
-            if (_error.isNotEmpty) ...[const SizedBox(height: 16), Text(_error, style: const TextStyle(color: Colors.red))],
+            TextField(
+              controller: _serverUrlController,
+              decoration: const InputDecoration(
+                labelText: '信令服务器地址',
+                hintText: 'http://192.168.1.100:8000',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.cloud),
+              ),
+            ),
+            if (_error.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(_error, style: const TextStyle(color: Colors.red)),
+            ],
             const SizedBox(height: 32),
-            ElevatedButton(onPressed: _connecting ? null : _connect, style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
-              child: _connecting ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('连接', style: TextStyle(fontSize: 18))),
+            ElevatedButton(
+              onPressed: _connecting ? null : _connect,
+              style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16)),
+              child: _connecting 
+                ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(strokeWidth: 2)) 
+                : const Text('连接', style: TextStyle(fontSize: 18)),
+            ),
           ],
         ),
       ),
@@ -90,55 +115,14 @@ class _ConnectPageState extends State<ConnectPage> {
   }
 }
 
-class DesktopPage extends StatefulWidget {
-  final String token;
-  final String serverUrl;
-  const DesktopPage({super.key, required this.token, required this.serverUrl});
-  @override
-  State<DesktopPage> createState() => _DesktopPageState();
-}
-
-class _DesktopPageState extends State<DesktopPage> {
-  late final RTCPeerConnection _pc;
-  RTCVideoRenderer _remoteRenderer = RTCVideoRenderer();
-  bool _isConnected = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initWebRTC();
-  }
-
-  Future<void> _initWebRTC() async {
-    try {
-      _pc = await createPeerConnection({'iceServers': [{'urls': 'stun:stun.l.google.com:19302'}]});
-      _pc.onTrack = (RTCTransceiver event) {
-        if (event.track.kind == 'video') {
-          _remoteRenderer.srcObject = event.streams[0];
-          setState(() => _isConnected = true);
-        }
-      };
-    } catch (e) {
-      debugPrint('WebRTC初始化错误: $e');
-    }
-  }
-
+class DesktopPage extends StatelessWidget {
+  const DesktopPage({super.key});
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('连接中: ${widget.token}'), actions: [IconButton(icon: const Icon(Icons.stop), onPressed: _disconnect)]),
-      body: _isConnected
-          ? RTCVideoView(_remoteRenderer, objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitContain, mirror: false)
-          : const Center(child: CircularProgressIndicator()),
+      appBar: AppBar(title: const Text('连接中...')),
+      body: const Center(child: CircularProgressIndicator()),
     );
   }
-
-  Future<void> _disconnect() async {
-    await _pc.close();
-    await _remoteRenderer.dispose();
-    if (mounted) Navigator.popUntil(context, (route) => route.isFirst);
-  }
-
-  @override
-  void dispose() { _remoteRenderer.dispose(); _pc.close(); super.dispose(); }
 }
