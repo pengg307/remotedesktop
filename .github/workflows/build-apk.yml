@@ -21,16 +21,12 @@ jobs:
     
     - name: Get dependencies
       working-directory: ./flutter_remote
-      run: |
-        flutter pub get
-        echo "Dependencies installed"
+      run: flutter pub get
         
     - name: Build APK
       working-directory: ./flutter_remote
-      run: |
-        flutter build apk --release
-        ls -la build/app/outputs/flutter-apk/
-          
+      run: flutter build apk --release
+      
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
