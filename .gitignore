@@ -1,0 +1,12 @@
+.gitmodules
+flutter_remote/.git
+flutter_remote/.gitignore
+flutter_remote/android/
+flutter_remote/ios/
+flutter_remote/lib/
+flutter_remote/test/
+flutter_remote/web/
+flutter_remote/windows/
+*.dart_tool/
+*.packages
+pubspec.lock

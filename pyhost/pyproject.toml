@@ -1,0 +1,17 @@
+# Windows远程桌面服务 - pyhost
+[project]
+name = "pyhost"
+version = "0.1.0"
+description = "Windows remote desktop host service"
+requires-python = ">=3.11"
+dependencies = [
+    "mss>=9.0.0",
+    "aiortc>=1.9.0",
+    "opencv-python>=4.9.0",
+    "numpy>=1.24.0",
+    "cryptography>=42.0",
+    "pillow>=10.0.0",
+]
+
+[tool.uv]
+package = false
