@@ -19,13 +19,12 @@ jobs:
         java-version: '17'
         distribution: 'temurin'
     
-    - name: Build with Gradle
-      uses: gradle/actions/setup-gradle@v3
-      with:
-        build-root-directory: ./android_remote
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+      working-directory: ./android_remote
     
     - name: Build APK
-      run: gradle assembleRelease
+      run: ./gradlew assembleRelease
       working-directory: ./android_remote
       
     - name: Upload APK
