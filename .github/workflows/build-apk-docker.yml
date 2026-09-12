@@ -1,0 +1,40 @@
+name: Build Android APK (Docker)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+  schedule:
+    - cron: '0 2 * * *'  # 每天凌晨2点自动构建
+
+jobs:
+  build:
+    name: Build APK with Docker
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+    
+    - name: Build Android APK
+      run: |
+        docker build -t remote-desktop-android .
+        mkdir -p output
+        docker run --rm -v "$(pwd)/output:/output" remote-desktop-android
+    
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: remote-desktop-apk
+        path: output/app-release.apk
+        retention-days: 30
+        if-no-files-found: error
+    
+    - name: Notify success
+      if: success()
+      run: |
+        echo "✅ APK 构建成功！"
+        echo "📦 文件: output/app-release.apk"
+        echo "📱 请在手机上安装并测试"
