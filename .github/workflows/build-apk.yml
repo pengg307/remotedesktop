@@ -13,23 +13,22 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     
-    - name: Set up Flutter
-      uses: subosito/flutter-action@v2
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
       with:
-        flutter-version: '3.16.0'
-        channel: 'stable'
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
     
-    - name: Get dependencies
-      working-directory: ./flutter_remote
-      run: flutter pub get
-        
+    - name: Grant execute permission
+      run: chmod +x gradlew
+    
     - name: Build APK
-      working-directory: ./flutter_remote
-      run: flutter build apk --release
+      run: ./gradlew assembleRelease
       
     - name: Upload APK
       uses: actions/upload-artifact@v4
       with:
-        name: remote-desktop-apk
-        path: flutter_remote/build/app/outputs/flutter-apk/app-release.apk
+        name: android-remote-desktop-apk
+        path: android_remote/app/build/outputs/apk/release/app-release.apk
         retention-days: 30
