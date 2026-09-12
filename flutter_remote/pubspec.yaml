@@ -1,19 +1,19 @@
 name: flutter_remote
-description: Remote desktop client for Android
-publish_to: 'none'
+description: Remote desktop client
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.0.0 <4.0.0'
+  sdk: '>=2.18.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
+  flutter_webrtc: any
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^3.0.0
+  flutter_lints: ^2.0.0
 
 flutter:
   uses-material-design: true
