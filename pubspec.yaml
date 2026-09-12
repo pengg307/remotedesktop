@@ -1,0 +1,40 @@
+# Flutter远程桌面客户端
+# Android控制Windows远程桌面
+
+name: flutter_remote
+description: Remote desktop client for Android to control Windows PC
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # WebRTC
+  flutter_webrtc: ^0.11.0
+  webrtc_interface: ^1.0.0
+  
+  # HTTP & WebSocket
+  http: ^1.1.0
+  web_socket_channel: ^3.0.0
+  
+  # UI
+  fluttertoast: ^8.2.4
+  provider: ^6.1.1
+  
+  # Utils
+  shared_preferences: ^2.2.2
+  uuid: ^4.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  
+  # 添加权限到android/app/src/main/AndroidManifest.xml
