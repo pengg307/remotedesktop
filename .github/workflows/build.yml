@@ -17,12 +17,16 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
       
       - name: Build APK
-        run: ./gradlew assembleRelease
-        working-directory: android_remote
+        run: |
+          cd android_remote
+          gradle assembleRelease
+        env:
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          JAVA_HOME: ${{ env.JAVA_HOME_17_x64 }}
       
       - name: Upload APK
         if: success()
