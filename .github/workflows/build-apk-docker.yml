@@ -1,0 +1,32 @@
+name: Build Android APK (Docker)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build Docker image
+        run: docker build -t android-build .
+        working-directory: .
+      
+      - name: Extract APK
+        run: |
+          docker create --name temp android-build
+          docker cp temp:/app/android_remote/app/build/outputs/apk/release/app-release.apk .
+          docker rm temp
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-remote-desktop-apk
+          path: app-release.apk
+          retention-days: 30
