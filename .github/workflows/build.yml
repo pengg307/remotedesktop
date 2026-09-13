@@ -8,19 +8,48 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: bmartin5692/android-builder:latest
-    
     steps:
       - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Install Android SDK
+        run: |
+          mkdir -p /opt/android-sdk
+          export ANDROID_HOME=/opt/android-sdk
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O /tmp/cmdline-tools.zip
+          unzip -q /tmp/cmdline-tools.zip -d /opt/android-sdk
+          mv /opt/android-sdk/cmdline-tools/latest /opt/android-sdk/cmdline-tools/tools
+          yes | /opt/android-sdk/tools/bin/sdkmanager --licenses > /dev/null 2>&1
+          /opt/android-sdk/tools/bin/sdkmanager "build-tools;33.0.0" "platforms;android-33" > /dev/null 2>&1
+      
+      - name: Download Gradle Wrapper
+        run: |
+          curl -sL https://github.com/gradle/gradle/raw/v7.5.0/gradle/wrapper/gradle-wrapper.jar -o android_remote/gradle/wrapper/gradle-wrapper.jar
+          ls -la android_remote/gradle/wrapper/
+      
+      - name: Create Gradlew
+        run: |
+          cat > android_remote/gradlew << 'EOF'
+          #!/bin/sh
+          APP_HOME=$(cd "$(dirname "$0")" && pwd)
+          exec java -Xmx64m -Xms64m -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          EOF
+          chmod +x android_remote/gradlew
+          ls -la android_remote/
       
       - name: Build APK
         run: |
           cd android_remote
-          ./gradlew assembleRelease
-        env:
-          ANDROID_HOME: /opt/android-sdk-linux
-          JAVA_HOME: /usr/lib/jvm/java-17-openjdk-amd64
+          export ANDROID_HOME=/opt/android-sdk
+          ./gradlew assembleRelease --no-daemon 2>&1 | tee build.log
+          echo "Exit: $?"
+          ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "No APK found"
       
       - name: Upload APK
         if: success()
