@@ -20,9 +20,13 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-      
       - name: Build APK
         run: ./gradlew assembleRelease
-        working-directory: android_remote
+        working-directory: ./android_remote
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-remote-desktop-apk
+          path: android_remote/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
