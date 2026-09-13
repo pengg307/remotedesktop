@@ -21,21 +21,44 @@ jobs:
     
     - name: Download Gradle
       run: |
-        wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
-        unzip -q gradle-7.5-bin.zip
-        export GRADLE_HOME=$PWD/gradle-7.5
-        export PATH=$GRADLE_HOME/bin:$PATH
+        curl -sL https://services.gradle.org/distributions/gradle-7.5-bin.zip -o gradle.zip
+        unzip -q gradle.zip
+        echo "GRADLE_HOME=$PWD/gradle-7.5" >> $GITHUB_ENV
+        echo "$PWD/gradle-7.5/bin" >> $GITHUB_PATH
+    
+    - name: Show environment
+      run: |
+        echo "Java version:"
+        java -version
+        echo ""
+        echo "Gradle version:"
+        gradle --version
+        echo ""
+        echo "Project structure:"
+        ls -la android_remote/
+        echo ""
+        cat android_remote/build.gradle
     
     - name: Build APK
       run: |
-        export GRADLE_HOME=$PWD/gradle-7.5
-        export PATH=$GRADLE_HOME/bin:$PATH
         cd android_remote
-        gradle assembleRelease
+        gradle assembleRelease --info --stacktrace 2>&1 | tee build.log
+        echo "Exit code: $?"
       env:
+        ANDROID_HOME: /opt/hostedtoolcache/android-sdk
         JAVA_HOME: ${{ env.JAVA_HOME_17_x64 }}
       
+    - name: Check output
+      if: always()
+      run: |
+        echo "Build log:"
+        cat android_remote/build.log | tail -100
+        echo ""
+        echo "Output files:"
+        find android_remote/app/build -name "*.apk" 2>/dev/null || echo "No APK found"
+      
     - name: Upload APK
+      if: success()
       uses: actions/upload-artifact@v4
       with:
         name: android-remote-desktop-apk
