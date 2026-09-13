@@ -17,22 +17,12 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Download Gradle
-        run: |
-          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
-          unzip -q gradle-7.5-bin.zip
-          echo "$PWD/gradle-7.5/bin" >> $GITHUB_PATH
-      
-      - name: Build
+      - name: Build APK
         run: |
           cd android_remote
-          gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
-          echo "Exit: $?"
-        env:
-          ANDROID_HOME: /opt/hostedtoolcache/android-sdk
-        
-      - name: Upload
-        if: success()
+          ./gradlew assembleRelease --no-daemon
+      
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: apk
