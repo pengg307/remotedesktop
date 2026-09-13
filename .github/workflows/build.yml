@@ -18,10 +18,8 @@ jobs:
           distribution: 'temurin'
       
       - name: Build APK
-        uses: reactivecircus/android-building-action@v1
-        with:
-          working-directory: android_remote
-          build-script-name: assembleRelease
+        run: ./gradlew assembleRelease
+        working-directory: android_remote
       
       - name: Upload APK
         if: success()
