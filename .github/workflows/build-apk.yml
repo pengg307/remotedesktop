@@ -11,26 +11,22 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v4
-    
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-    
-    - name: Install build tools
-      run: |
-        sdkmanager --install "build-tools;33.0.0" "platforms;android-33"
-    
-    - name: Build APK
-      run: |
-        cd android_remote
-        # Download gradle wrapper manually
-        curl -sL "https://raw.githubusercontent.com/pengg307/remotedesktop/main/android_remote/gradlew" -o gradlew
-        chmod +x gradlew
-        ./gradlew assembleRelease
-        
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: android-remote-desktop-apk
-        path: android_remote/app/build/outputs/apk/release/app-release.apk
-        retention-days: 30
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      
+      - name: Build APK
+        run: ./gradlew assembleRelease
+        working-directory: ./android_remote
+      
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-remote-desktop-apk
+          path: android_remote/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
