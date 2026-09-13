@@ -1,20 +1,17 @@
-name: Build Android APK
+name: Build APK
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   workflow_dispatch:
 
 jobs:
   build:
-    name: Build APK
     runs-on: ubuntu-latest
-    
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
       
-      - name: Set up JDK 17
+      - name: Set up Java
         uses: actions/setup-java@v4
         with:
           java-version: '17'
@@ -22,19 +19,21 @@ jobs:
       
       - name: Download Gradle
         run: |
-          curl -sL https://services.gradle.org/distributions/gradle-7.5-bin.zip -o gradle.zip
-          unzip -q gradle.zip
+          wget -q https://services.gradle.org/distributions/gradle-7.5-bin.zip
+          unzip -q gradle-7.5-bin.zip
           echo "$PWD/gradle-7.5/bin" >> $GITHUB_PATH
       
-      - name: Build APK
+      - name: Build
         run: |
           cd android_remote
-          gradle assembleRelease --no-daemon --stacktrace
-          ls -la app/build/outputs/apk/release/
-      
-      - name: Upload APK
+          gradle assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          echo "Exit: $?"
+        env:
+          ANDROID_HOME: /opt/hostedtoolcache/android-sdk
+        
+      - name: Upload
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: android-remote-desktop-apk
+          name: apk
           path: android_remote/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
