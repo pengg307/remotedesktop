@@ -17,16 +17,27 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Download Gradle Wrapper JAR
+        run: |
+          curl -sL https://raw.githubusercontent.com/gradle/gradle/v7.5.0/gradle/wrapper/gradle-wrapper.jar -o android_remote/gradle/wrapper/gradle-wrapper.jar
+          ls -la android_remote/gradle/wrapper/
+      
+      - name: Create Gradlew Script
+        run: |
+          cat > android_remote/gradlew << 'EOF'
+          #!/bin/sh
+          APP_HOME=$(cd "$(dirname "$0")" && pwd)
+          exec java -Xmx64m -Xms64m -classpath "$APP_HOME/gradle/wrapper/gradle-wrapper.jar" org.gradle.wrapper.GradleWrapperMain "$@"
+          EOF
+          chmod +x android_remote/gradlew
+          ls -la android_remote/
       
       - name: Build APK
         run: |
           cd android_remote
-          gradle assembleRelease
-        env:
-          ANDROID_HOME: ${{ env.ANDROID_HOME }}
-          JAVA_HOME: ${{ env.JAVA_HOME_17_x64 }}
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1 | tee build.log
+          echo "Exit code: $?"
+          ls -la app/build/outputs/apk/release/ 2>/dev/null || echo "No APK found"
       
       - name: Upload APK
         if: success()
