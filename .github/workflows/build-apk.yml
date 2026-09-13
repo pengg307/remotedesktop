@@ -20,14 +20,17 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: '7.5'
+      - name: Download Gradle
+        run: |
+          curl -sL https://services.gradle.org/distributions/gradle-7.5-bin.zip -o gradle.zip
+          unzip -q gradle.zip
+          echo "$PWD/gradle-7.5/bin" >> $GITHUB_PATH
       
       - name: Build APK
-        run: ./gradlew assembleRelease
-        working-directory: android_remote
+        run: |
+          cd android_remote
+          gradle assembleRelease --no-daemon --stacktrace
+          ls -la app/build/outputs/apk/release/
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
