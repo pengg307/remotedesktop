@@ -20,20 +20,9 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
       
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
       
       - name: Build APK
-        run: |
-          cd android_remote
-          ./gradlew assembleRelease --no-daemon --stacktrace
-          echo "Build completed successfully"
-        env:
-          JAVA_HOME: ${{ env.JAVA_HOME_17_x64 }}
-      
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: android-remote-desktop-apk
-          path: android_remote/app/build/outputs/apk/release/app-release.apk
-          retention-days: 30
+        run: ./gradlew assembleRelease
+        working-directory: android_remote
