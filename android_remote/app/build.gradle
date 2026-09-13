@@ -4,13 +4,13 @@ plugins {
 }
 
 android {
-    namespace 'com.example.androidremote'
-    compileSdk 34
+    namespace 'com.example.remotedesktop'
+    compileSdk 33
     
     defaultConfig {
-        applicationId "com.example.androidremote"
-        minSdk 24
-        targetSdk 34
+        applicationId "com.example.remotedesktop"
+        minSdk 21
+        targetSdk 33
         versionCode 1
         versionName "1.0"
     }

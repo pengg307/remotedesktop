@@ -1,10 +1,5 @@
-# Android Remote Desktop
-Android原生远程桌面客户端，使用WebRTC与Windows端通信
-
-## 技术栈
-- Kotlin
-- WebRTC (google-webrtc)
-- Material Design
+# Remote Desktop Android Client
+Android原生远程桌面客户端
 
 ## 构建
 ```bash
@@ -13,4 +8,4 @@ Android原生远程桌面客户端，使用WebRTC与Windows端通信
 
 ## 连接
 - Token: Windows端显示的6位码
-- 服务器: 信令服务器地址
+- 服务器: http://Windows_IP:8000

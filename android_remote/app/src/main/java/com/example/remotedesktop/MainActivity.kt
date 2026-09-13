@@ -1,24 +1,18 @@
-package com.example.androidremote
+package com.example.remotedesktop
 
 import android.os.Bundle
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 
 class MainActivity : AppCompatActivity() {
-    
-    private lateinit var tokenEditText: EditText
-    private lateinit var serverEditText: EditText
-    private lateinit var connectButton: Button
-    private lateinit var statusText: TextView
-    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         
-        tokenEditText = findViewById(R.id.tokenEditText)
-        serverEditText = findViewById(R.id.serverEditText)
-        connectButton = findViewById(R.id.connectButton)
-        statusText = findViewById(R.id.statusText)
+        val tokenEditText = findViewById<EditText>(R.id.tokenEditText)
+        val serverEditText = findViewById<EditText>(R.id.serverEditText)
+        val connectButton = findViewById<Button>(R.id.connectButton)
+        val statusText = findViewById<TextView>(R.id.statusText)
         
         connectButton.setOnClickListener {
             val token = tokenEditText.text.toString().trim()
