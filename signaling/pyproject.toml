@@ -1,12 +1,17 @@
 [project]
 name = "signaling"
-version = "0.1.0"
-description = "Remote desktop signaling server"
-requires-python = ">=3.11"
+version = "1.0.0"
+description = "Remote Desktop Signaling Server"
+requires-python = ">=3.8"
 dependencies = [
-    "fastapi>=0.115.0",
-    "uvicorn[standard]>=0.30.0",
-    "websockets>=13.0",
-    "aiohttp>=3.9.0",
-    "cryptography>=42.0",
+    "fastapi>=0.104.0",
+    "uvicorn>=0.24.0",
+    "python-multipart>=0.0.6",
+    "pyngrok>=7.0.0",
 ]
+
+[project.optional-dependencies]
+dev = ["pyngrok>=7.0.0"]
+
+[tool.uv]
+# UV包管理器配置

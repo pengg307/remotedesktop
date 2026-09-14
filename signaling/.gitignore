@@ -1,0 +1,14 @@
+.git
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+.env
+*.log
+.DS_Store
+.hermes/
+hermes_logs/
+pytest-cache/
