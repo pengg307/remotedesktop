@@ -1,17 +1,17 @@
-# Windows远程桌面服务 - pyhost
 [project]
-name = "pyhost"
-version = "0.1.0"
-description = "Windows remote desktop host service"
-requires-python = ">=3.11"
+name = "remotedesk-pyhost"
+version = "1.0.0"
+description = "Windows Remote Desktop Host with Cloud Signaling"
+requires-python = ">=3.9"
 dependencies = [
-    "mss>=9.0.0",
+    "aiohttp>=3.9.0",
     "aiortc>=1.9.0",
-    "opencv-python>=4.9.0",
-    "numpy>=1.24.0",
-    "cryptography>=42.0",
+    "mss>=9.0.0",
     "pillow>=10.0.0",
+    "numpy>=1.24.0",
+    "opencv-python>=4.8.0",
+    "websockets>=13.0",
 ]
 
-[tool.uv]
-package = false
+[project.scripts]
+remotedesk-host = "host:main"

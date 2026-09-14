@@ -1,56 +1,94 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="16dp"
-    android:background="#FFFFFF">
+    android:background="#0d1117">
 
-    <TextView
+    <!-- 顶部控制栏 -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="远程桌面控制"
-        android:textSize="24sp"
-        android:textStyle="bold"
-        android:gravity="center"
-        android:paddingBottom="24dp"
-        android:textColor="#2196F3"/>
+        android:orientation="vertical"
+        android:padding="12dp"
+        android:background="#161b22"
+        android:elevation="4dp">
 
-    <EditText
-        android:id="@+id/tokenEditText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="Token"
-        android:inputType="textCapCharacters"
-        android:maxLines="1"
-        android:textSize="20sp"
-        android:layout_marginBottom="16dp"/>
+        <!-- 服务器地址输入 -->
+        <EditText
+            android:id="@+id/serverEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="信令服务器地址 (如 https://xxx.railway.app)"
+            android:inputType="textUri"
+            android:textSize="13sp"
+            android:padding="10dp"
+            android:background="#21262d"
+            android:textColor="#e6edf3"
+            android:textColorHint="#8b949e"
+            android:singleLine="true"
+            android:layout_marginBottom="8dp" />
 
-    <EditText
-        android:id="@+id/serverEditText"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:hint="服务器地址"
-        android:inputType="textUri"
-        android:text="http://192.168.1.100:8000"
-        android:textSize="14sp"
-        android:layout_marginBottom="24dp"/>
+        <!-- Token输入 -->
+        <EditText
+            android:id="@+id/tokenEditText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="输入6位Token"
+            android:inputType="text"
+            android:textSize="18sp"
+            android:padding="12dp"
+            android:background="#21262d"
+            android:textColor="#e6edf3"
+            android:textColorHint="#8b949e"
+            android:maxLength="6"
+            android:layout_marginBottom="10dp" />
 
-    <Button
-        android:id="@+id/connectButton"
-        android:layout_width="match_parent"
-        android:layout_height="56dp"
-        android:text="连接"
-        android:textSize="18sp"
-        android:backgroundTint="#2196F3"/>
+        <!-- 连接按钮 -->
+        <Button
+            android:id="@+id/connectButton"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:text="连接"
+            android:textSize="15sp"
+            android:textColor="#ffffff"
+            android:backgroundTint="#238636"
+            android:padding="12dp" />
 
-    <TextView
-        android:id="@+id/statusText"
+        <!-- 状态显示 -->
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="就绪"
+            android:textSize="12sp"
+            android:textColor="#8b949e"
+            android:gravity="center"
+            android:layout_marginTop="6dp"
+            tools:ignore="HardcodedText" />
+
+    </LinearLayout>
+
+    <!-- 视频显示区域 -->
+    <FrameLayout
+        android:id="@+id/videoContainer"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:gravity="center"
-        android:text="等待连接..."
-        android:textColor="#757575"/>
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#000000">
+
+        <!-- 占位提示 -->
+        <TextView
+            android:id="@+id/loadingText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="等待屏幕共享..."
+            android:textColor="#484f58"
+            android:textSize="14sp"
+            android:visibility="visible" />
+
+    </FrameLayout>
 
 </LinearLayout>
