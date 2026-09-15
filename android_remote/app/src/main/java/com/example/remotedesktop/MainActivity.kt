@@ -2,34 +2,23 @@ package com.example.remotedesktop
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.opengl.EGL14
 import android.os.Bundle
 import android.util.Log
-import android.view.View
+import android.view.SurfaceHolder
 import android.view.WindowManager
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.android.material.snackbar.Snackbar
 import org.json.JSONObject
 import org.webrtc.*
-import java.util.concurrent.Executors
-import okhttp3.*
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONArray
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
     
     companion object {
         private const val TAG = "RemoteDesk"
         private const val PERMISSION_REQUEST_CODE = 100
-        private const val DEFAULT_SIGNALING_URL = "https://YOUR_RAILWAY_URL.up.railway.app"
     }
     
     private lateinit var serverEditText: EditText
@@ -40,8 +29,7 @@ class MainActivity : AppCompatActivity() {
     
     private var peerConnection: PeerConnection? = null
     private var signalingClient: SignalingClient? = null
-    private var localVideoTrack: VideoTrack? = null
-    private val executor = Executors.newSingleThreadExecutor()
+    private var peerConnectionFactory: PeerConnectionFactory? = null
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,10 +46,8 @@ class MainActivity : AppCompatActivity() {
         videoView = findViewById(R.id.videoView)
         
         // 设置视频显示
-        videoView.init(EGLContext.getCurrent(), null)
-        videoView.setRenderQuality(25, 60, 30, 1280 * 720)
+        videoView.init(getEGLContext(), null)
         videoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
-        videoView.setEnableHardwareScaler(true)
         
         // 加载保存的URL
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
@@ -97,6 +83,27 @@ class MainActivity : AppCompatActivity() {
         
         // 请求权限
         requestPermissions()
+    }
+    
+    private fun getEGLContext(): EGLContext {
+        val eglDisplay = EGL14.eglGetDisplay(EGL14.EGL_DEFAULT_DISPLAY)
+        val eglVersion = IntArray(1)
+        EGL14.eglInitialize(eglDisplay, eglVersion, 0, eglVersion, 1)
+        
+        val attributes = intArrayOf(
+            EGL14.EGL_RENDERABLE_TYPE, EGL14.EGL_OPENGL_ES2_BIT,
+            EGL14.EGL_SURFACE_TYPE, EGL14.EGL_WINDOW_BIT,
+            EGL14.EGL_NONE
+        )
+        val configs = arrayOfNulls<EGLConfig>(1)
+        val configCount = IntArray(1)
+        EGL14.eglChooseConfig(eglDisplay, attributes, 0, configs, 0, 1, configCount, 0)
+        
+        val contextAttributes = intArrayOf(
+            EGL14.EGL_CONTEXT_CLIENT_VERSION, 2,
+            EGL14.EGL_NONE
+        )
+        return EGL14.eglCreateContext(eglDisplay, configs[0], EGL14.EGL_NO_CONTEXT, contextAttributes, 0)
     }
     
     private fun connectToServer(url: String, token: String) {
@@ -162,6 +169,11 @@ class MainActivity : AppCompatActivity() {
     }
     
     private fun handleSdpOffer(offer: String) {
+        // 初始化PeerConnectionFactory（只初始化一次）
+        if (peerConnectionFactory == null) {
+            peerConnectionFactory = PeerConnectionFactory.builder().createPeerConnectionFactory()
+        }
+        
         // 创建WebRTC配置
         val rtcConfig = RTCConfiguration(ArrayList())
         rtcConfig.iceServers = listOf(
@@ -170,14 +182,18 @@ class MainActivity : AppCompatActivity() {
         )
         
         // 创建PeerConnection
-        val factory = PeerConnectionFactory.builder().createPeerConnectionFactory()
-        peerConnection = factory.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
+        peerConnection = peerConnectionFactory?.createPeerConnection(rtcConfig, object : PeerConnection.Observer {
             override fun onSignalingChange(state: PeerConnection.SignalingState) {
                 Log.d(TAG, "信令状态: $state")
             }
             
             override fun onIceConnectionChange(state: PeerConnection.IceConnectionState) {
                 Log.d(TAG, "ICE连接状态: $state")
+                if (state == PeerConnection.IceConnectionState.CONNECTED) {
+                    runOnUiThread {
+                        showStatus("视频连接成功!", true)
+                    }
+                }
             }
             
             override fun onIceGatheringChange(state: PeerConnection.IceGatheringState) {
@@ -191,16 +207,13 @@ class MainActivity : AppCompatActivity() {
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>) {}
             
             override fun onAddStream(stream: MediaStream) {
-                Log.d(TAG, "添加流: ${stream.videoTracks.size} 视频, ${stream.audioTracks.size} 音频")
+                Log.d(TAG, "添加流: ${stream.videoTracks.size} 视频")
                 
                 // 添加视频轨道
                 if (stream.videoTracks.isNotEmpty()) {
                     val videoTrack = stream.videoTracks[0]
                     videoView.setMirror(false)
                     videoTrack.addSink(videoView)
-                    runOnUiThread {
-                        showStatus("正在显示屏幕...", true)
-                    }
                 }
             }
             
@@ -215,24 +228,33 @@ class MainActivity : AppCompatActivity() {
         
         // 设置远程描述（SDP Offer）
         val sdp = SessionDescription(SessionDescription.Type.OFFER, offer)
-        peerConnection?.setRemoteDescription(object : SimpleSdpObserver() {
+        peerConnection?.setRemoteDescription(object : SdpObserver {
+            override fun onCreateSuccess() {}
             override fun onSetSuccess() {
                 Log.d(TAG, "设置远程描述成功")
                 
                 // 创建Answer
-                peerConnection?.createAnswer(object : SimpleSdpObserver() {
+                peerConnection?.createAnswer(object : SdpObserver {
                     override fun onCreateSuccess(sdp: SessionDescription) {
                         Log.d(TAG, "创建Answer成功")
                         // 发送Answer到信令服务器
                         signalingClient?.sendSdpAnswer(sdp.description)
                         // 设置本地描述
-                        peerConnection?.setLocalDescription(SimpleSdpObserver(), sdp)
+                        peerConnection?.setLocalDescription(this, sdp)
                     }
                     
+                    override fun onSetSuccess() {}
                     override fun onCreateFailure(error: String?) {
                         Log.e(TAG, "创建Answer失败: $error")
                     }
+                    override fun onSetFailure(error: String?) {
+                        Log.e(TAG, "设置Answer失败: $error")
+                    }
                 }, MediaConstraints())
+            }
+            
+            override fun onCreateFailure(error: String?) {
+                Log.e(TAG, "创建Offer失败: $error")
             }
             
             override fun onSetFailure(error: String?) {
@@ -248,6 +270,7 @@ class MainActivity : AppCompatActivity() {
         signalingClient?.stop()
         signalingClient = null
         videoView.release()
+        videoView.removeVideoSink(videoView)  // 清理
         showStatus("已断开", false)
         connectButton.isEnabled = true
         connectButton.text = "连接"
@@ -300,19 +323,6 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         disconnect()
-        executor.shutdown()
-    }
-}
-
-// 简化的SDP观察者
-private class SimpleSdpObserver : SdpObserver {
-    override fun onCreateSuccess() {}
-    override fun onSetSuccess() {}
-    override fun onCreateFailure(error: String?) {
-        Log.e(TAG, "SDP创建失败: $error")
-    }
-    override fun onSetFailure(error: String?) {
-        Log.e(TAG, "SDP设置失败: $error")
     }
 }
 
@@ -331,11 +341,11 @@ class SignalingClient(
     }
     
     private var callback: Callback? = null
-    private var ws: WebSocket? = null
+    private var ws: okhttp3.WebSocket? = null
     private var roomId: String? = null
     private var isConnecting = false
     
-    private val client = OkHttpClient.Builder()
+    private val client = okhttp3.OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .build()
@@ -353,13 +363,13 @@ class SignalingClient(
         
         // 1. 获取Token和房间ID
         val tokenUrl = "$signalingUrl/api/token"
-        val tokenRequest = Request.Builder()
+        val tokenRequest = okhttp3.Request.Builder()
             .url(tokenUrl)
-            .post "".toRequestBody("application/json".toMediaType())
+            .post(okhttp3.RequestBody.create(null, ""))
             .build()
         
-        client.newCall(tokenRequest).enqueue(object : Callback {
-            override fun onResponse(call: Call, response: Response) {
+        client.newCall(tokenRequest).enqueue(object : okhttp3.Callback {
+            override fun onResponse(call: okhttp3.Call, response: okhttp3.Response) {
                 response.use {
                     if (!it.isSuccessful) {
                         callback?.onError("获取Token失败: ${it.code}")
@@ -377,7 +387,7 @@ class SignalingClient(
                 }
             }
             
-            override fun onFailure(call: Call, e: java.io.IOException) {
+            override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
                 callback?.onError("网络错误: ${e.message}")
             }
         })
@@ -387,17 +397,17 @@ class SignalingClient(
         val wsUrl = "$signalingUrl/ws/$roomId?role=client"
         Log.i(TAG, "连接WebSocket: $wsUrl")
         
-        val wsRequest = Request.Builder()
+        val wsRequest = okhttp3.Request.Builder()
             .url(wsUrl)
             .build()
         
-        ws = client.newWebSocket(wsRequest, object : WebSocketListener() {
-            override fun onOpen(websocket: WebSocket, response: Response) {
+        ws = client.newWebSocket(wsRequest, object : okhttp3.WebSocketListener() {
+            override fun onOpen(websocket: okhttp3.WebSocket, response: okhttp3.Response) {
                 Log.i(TAG, "WebSocket已打开")
                 callback?.onConnectionStateChanged("connected")
             }
             
-            override fun onMessage(websocket: WebSocket, text: String) {
+            override fun onMessage(websocket: okhttp3.WebSocket, text: String) {
                 Log.d(TAG, "收到消息: $text")
                 try {
                     val msg = JSONObject(text)
@@ -428,13 +438,13 @@ class SignalingClient(
                 }
             }
             
-            override fun onClosing(websocket: WebSocket, code: Int, reason: String) {
+            override fun onClosing(websocket: okhttp3.WebSocket, code: Int, reason: String) {
                 Log.i(TAG, "WebSocket关闭: $reason")
                 websocket.close(code, null)
                 callback?.onConnectionStateChanged("disconnected")
             }
             
-            override fun onFailure(websocket: WebSocket, t: Throwable, response: Response) {
+            override fun onFailure(websocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response) {
                 Log.e(TAG, "WebSocket错误: ${t.message}")
                 callback?.onError(t.message ?: "连接失败")
             }
