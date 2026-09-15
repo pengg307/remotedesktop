@@ -1,0 +1,45 @@
+name: Setup ngrok Tunnel
+
+on:
+  workflow_dispatch:
+    inputs:
+      ngrok_token:
+        description: 'ngrok Auth Token (get from https://dashboard.ngrok.com/signup)'
+        required: true
+        type: string
+
+jobs:
+  setup-ngrok:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install ngrok
+        run: |
+          curl -sSL https://bin.equinox.io/c/bNyj1mQVY4c/ngrok-v3-stable-linux-amd64.tgz | tar -xz -C /tmp
+          mv /tmp/ngrok /usr/local/bin/
+          ngrok version
+      
+      - name: Start ngrok tunnel
+        run: |
+          nohup ngrok http 8000 --authtoken "${{ inputs.ngrok_token }}" > /tmp/ngrok.log 2>&1 &
+          sleep 5
+          cat /tmp/ngrok.log
+      
+      - name: Get tunnel URL
+        run: |
+          sleep 2
+          curl -s http://localhost:4040/api/tunnels | jq -r '.tunnels[0].public_url' > /tmp/tunnel_url.txt
+          echo "Public URL: $(cat /tmp/tunnel_url.txt)"
+          echo "TUNNEL_URL=$(cat /tmp/tunnel_url.txt)" >> $GITHUB_ENV
+      
+      - name: Save tunnel info
+        run: |
+          echo "ngrok Tunnel URL: $TUNNEL_URL"
+          echo "Token: $(curl -s -X POST http://localhost:8000/api/token 2>/dev/null || echo 'Start signaling server first')"
