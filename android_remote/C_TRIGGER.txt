@@ -1,0 +1,6 @@
+# CI Trigger - September 15 2026
+
+This file triggers the Android APK build in GitHub Actions.
+
+Previous trigger: c375069 (docs only, no android changes)
+This commit: Touch build.gradle to trigger CI rebuild
