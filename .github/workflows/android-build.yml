@@ -22,9 +22,10 @@ jobs:
           distribution: 'temurin'
           
       - name: Grant execute permission
-        run: chmod +x gradlew
+        run: chmod +x android_remote/gradlew
         
       - name: Build APK
+        working-directory: ./android_remote
         run: ./gradlew assembleDebug
         
       - name: Upload APK
