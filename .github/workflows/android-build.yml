@@ -22,22 +22,24 @@ jobs:
           distribution: 'temurin'
       
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-      
-      - name: Download Gradle Wrapper
         run: |
-          cd android_remote
-          chmod +x gradlew
-          # 使用国内镜像加速下载
-          export GRADLE_OPTS="-Dhttp.proxyHost= -Dhttps.proxyHost= -Dhttp.proxyPort=-1 -Dhttps.proxyPort=-1"
-          ./gradlew --version
+          sudo apt-get update
+          sudo apt-get install -y android-sdk
+          export ANDROID_HOME=/usr/lib/android-sdk
+          export PATH=$PATH:$ANDROID_HOME/platform-tools
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          
+          # 安装必要的SDK组件
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" 2>&1 || \
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" 2>&1 || true
       
       - name: Build APK
         run: |
           cd android_remote
-          ./gradlew assembleDebug
-        env:
-          GRADLE_OPTS: '-Dorg.gradle.daemon=false'
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+        timeout-minutes: 30
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
