@@ -5,6 +5,7 @@ on:
     branches: [ main ]
     paths:
       - 'android_remote/**'
+      - '.github/workflows/android-build.yml'
   workflow_dispatch:
 
 jobs:
@@ -24,14 +25,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y android-sdk
-          sudo mkdir -p /opt/android-sdk/cmdline-tools
-          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
-          unzip -q commandlinetools-linux-11076708_latest.zip -d /tmp/sdk-tools
-          sudo mv /tmp/sdk-tools/cmdline-tools /opt/android-sdk/cmdline-tools/latest
-          yes | sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
-          sudo /opt/android-sdk/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0"
-          export ANDROID_HOME=/opt/android-sdk
+          export ANDROID_HOME=/usr/lib/android-sdk
           export PATH=$PATH:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" 2>&1 || \
+            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" 2>&1 || true
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
           echo "PATH=$PATH" >> $GITHUB_ENV
       
