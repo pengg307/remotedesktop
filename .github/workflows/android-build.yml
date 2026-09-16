@@ -21,13 +21,18 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
           
-      - name: Grant execute permission
-        run: chmod +x android_remote/gradlew
-        
+      - name: Download Gradle
+        run: |
+          wget https://services.gradle.org/distributions/gradle-8.2-bin.zip -O /tmp/gradle.zip
+          unzip -q /tmp/gradle.zip -d /opt/
+          ls /opt/gradle-8.2/bin/
+          
       - name: Build APK
-        working-directory: ./android_remote
-        run: ./gradlew assembleDebug
-        
+        run: |
+          export PATH=/opt/gradle-8.2/bin:$PATH
+          cd android_remote
+          gradle assembleDebug
+          
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
