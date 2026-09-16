@@ -10,35 +10,23 @@ on:
 
 jobs:
   build:
-    # Use Docker-based approach with pre-built Android image
     runs-on: ubuntu-latest
     
     steps:
       - uses: actions/checkout@v4
       
-      - name: Build and run in Android container
-        run: |
-          # 使用Google官方Android构建容器
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            -w /workspace/android_remote \
-            -e ANDROID_HOME=/opt/android \
-            -e JAVA_HOME=/usr/local/openjdk-17 \
-            google/android-emulator-containerci-tools:latest \
-            bash -c "
-              echo '=== Setting up environment ==='
-              apt-get update && apt-get install -y android-sdk
-              export ANDROID_HOME=/usr/lib/android-sdk
-              yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null 2>&1 || true
-              $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager 'platforms;android-34' >/dev/null 2>&1 || true
-              $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager 'build-tools;34.0.0' >/dev/null 2>&1 || true
-              echo '=== Building APK ==='
-              chmod +x gradlew
-              ./gradlew assembleDebug --no-daemon
-              echo '=== Checking output ==='
-              ls -la app/build/outputs/apk/debug/
-            "
-      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          
+      - name: Grant execute permission
+        run: chmod +x gradlew
+        
+      - name: Build APK
+        run: ./gradlew assembleDebug
+        
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
