@@ -28,18 +28,24 @@ jobs:
           export ANDROID_HOME=/usr/lib/android-sdk
           export PATH=$PATH:$ANDROID_HOME/platform-tools
           echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
-          
-          # 安装必要的SDK组件
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" "build-tools;34.0.0" 2>&1 || \
-            $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" "build-tools;33.0.2" 2>&1 || true
+          # 接受所有许可证
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses >/dev/null 2>&1 || true
+          # 安装构建工具
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-34" >/dev/null 2>&1 || \
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-33" >/dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" >/dev/null 2>&1 || \
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;33.0.2" >/dev/null 2>&1 || true
       
       - name: Build APK
+        working-directory: android_remote
         run: |
-          cd android_remote
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
-        timeout-minutes: 30
+          ./gradlew assembleDebug --no-daemon --stacktrace
+        timeout-minutes: 20
+      
+      - name: Check APK exists
+        working-directory: android_remote
+        run: ls -la app/build/outputs/apk/debug/
       
       - name: Upload APK
         uses: actions/upload-artifact@v4
