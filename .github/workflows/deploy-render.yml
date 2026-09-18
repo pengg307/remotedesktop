@@ -1,0 +1,48 @@
+name: Deploy to Render
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'signaling/**'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r signaling/requirements.txt
+          python -m py_compile signaling/server.py
+          echo "✓ Code validation passed"
+      
+      - name: Test signaling server
+        run: |
+          cd signaling
+          python -c "from server import app, SignalingServer, Config; print(f'✓ Import OK: port={Config.PORT}')"
+      
+      - name: Deploy to Render
+        run: |
+          echo "✓ 代码已准备好部署到Render"
+          echo ""
+          echo "📋 部署步骤："
+          echo "1. 打开 https://render.com"
+          echo "2. 点击 New + → Web Service"
+          echo "3. 连接GitHub仓库: pengg307/remotedesktop"
+          echo "4. 填写配置:"
+          echo "   - Name: remotedesk-signaling"
+          echo "   - Root Directory: signaling/"
+          echo "   - Build Command: pip install -r requirements.txt"
+          echo "   - Start Command: python server.py"
+          echo "   - Environment: Python 3.11"
+          echo "5. 点击 Create Web Service"
+          echo ""
+          echo "✓ 完成后会得到URL: https://remotedesk-signaling.onrender.com"

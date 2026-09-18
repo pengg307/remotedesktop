@@ -1,68 +1,53 @@
-# 云端信令服务器 - 使用说明
+# Remote Desktop Signaling Server
 
-## 文件结构
+FastAPI WebSocket信令服务器，用于WebRTC远程桌面握手。
+
+## 功能
+
+- Token生成（6位，排除混淆字符）
+- 房间管理（30分钟过期）
+- SDP Offer/Answer交换
+- ICE候选转发
+- 触摸事件转发
+
+## API
+
 ```
-signaling/
-├── server.py        # 信令服务器主代码
-├── start_server.py  # 启动入口（读取环境变量）
-├── requirements.txt # Python依赖
-├── test_server.py   # 测试脚本
-├── start.sh         # Linux启动脚本
-├── start.bat        # Windows启动脚本
-└── DEPLOY.md        # 完整部署文档
-```
-
-## 快速启动（本地测试）
-
-```bash
-cd E:/aiprojects/RemoteDesktop/signaling/
-pip install -r requirements.txt
-python test_server.py
-```
-
-## 云端部署步骤
-
-### 1. 上传到ECS
-```bash
-scp -r signaling/ root@你的服务器IP:/opt/remotedesktop/
+GET  /api/health          → {"status":"ok","rooms":N}
+POST /api/token           → {"room_id":"...","token":"ABC123"}
+GET  /api/room/{id}       → 房间状态
+WS   /ws/{room_id}?role=host|client  → WebSocket信令通道
 ```
 
-### 2. 在云端启动
-```bash
-ssh root@你的服务器IP
-cd /opt/remotedesktop/signaling/
-pip install -r requirements.txt
-python start_server.py
-```
+## 消息格式
 
-### 3. 验证
-```bash
-curl http://你的服务器IP:8000/api/health
-curl -X POST http://你的服务器IP:8000/api/token
-```
-
-## API接口
-
-### 创建房间
-```bash
-curl -X POST http://你的服务器IP:8000/api/token
-# 返回: {"room_id": "...", "token": "XY7Z9P", "expires_in_minutes": 30}
-```
-
-### WebSocket连接
-- Windows端: `ws://服务器IP:8000/ws/{room_id}?role=host`
-- Android端: `ws://服务器IP:8000/ws/{room_id}?role=client`
-
-### 消息协议
 ```json
 {
-  "type": "join|sdp_offer|sdp_answer|ice_candidate|connecting|closed",
+  "type": "join_ack|sdp_offer|sdp_answer|ice_candidate|input|connecting|closed",
   "data": {...}
 }
 ```
 
-## 下一步
+## 部署
 
-1. 先在云端部署测试连通性
-2. 如果通，修改pyhost/host.py使用云端信令
-3. 如果不通，考虑其他方案（ngrok/公网穿透）
+### Render（推荐）
+1. 打开 https://render.com
+2. New + → Web Service
+3. 连接GitHub仓库
+4. 配置：
+   - Root Directory: `signaling/`
+   - Build: `pip install -r requirements.txt`
+   - Start: `python server.py`
+5. 创建后获得URL
+
+### Vercel（备选）
+- 可用，但WebSocket支持有限制
+- 建议优先Render
+
+## 本地测试
+
+```bash
+cd signaling
+uvicorn server:app --reload --port 8000
+python test_e2e.py
+```
