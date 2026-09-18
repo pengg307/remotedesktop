@@ -1,20 +1,22 @@
 """
-云端信令服务器 - 简化启动入口
-环境变量的配置方式：
-  SIGN_PORT=8000 SIGN_HOST=0.0.0.0 python server.py
+Render部署入口
+自动读取PORT环境变量
 """
 import os
 import sys
 
-# 从环境变量读取配置
-os.environ.setdefault("SIGN_HOST", "0.0.0.0")
-os.environ.setdefault("SIGN_PORT", "8000")
-os.environ.setdefault("TOKEN_LENGTH", "6")
-os.environ.setdefault("ROOM_EXPIRE", "30")
-os.environ.setdefault("MAX_ROOMS", "100")
+# 添加当前目录到路径
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-# 导入并启动
-from server import app, main
+from server import app, Config
+
+# Render会设置PORT环境变量
+port = int(os.getenv("PORT", "8000"))
+host = os.getenv("HOST", "0.0.0.0")
+
+print(f"[*] Starting on {host}:{port}")
+print(f"[*] Environment: {'production' if port != 8000 else 'local'}")
 
 if __name__ == "__main__":
-    main()
+    import uvicorn
+    uvicorn.run(app, host=host, port=port)

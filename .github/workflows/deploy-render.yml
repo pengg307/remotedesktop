@@ -20,29 +20,33 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -r signaling/requirements.txt
-          python -m py_compile signaling/server.py
+          cd signaling
+          pip install -r requirements.txt
+          python -m py_compile server.py start_server.py
           echo "✓ Code validation passed"
       
-      - name: Test signaling server
+      - name: Test imports
         run: |
           cd signaling
           python -c "from server import app, SignalingServer, Config; print(f'✓ Import OK: port={Config.PORT}')"
+          python -c "from start_server import app; print('✓ Start server OK')"
       
-      - name: Deploy to Render
+      - name: Deploy instructions
         run: |
-          echo "✓ 代码已准备好部署到Render"
+          echo "✓ 代码验证通过！"
           echo ""
-          echo "📋 部署步骤："
+          echo "📋 在Render部署步骤："
           echo "1. 打开 https://render.com"
           echo "2. 点击 New + → Web Service"
-          echo "3. 连接GitHub仓库: pengg307/remotedesktop"
-          echo "4. 填写配置:"
+          echo "3. Connect a repo → 选择 pengg307/remotedesktop"
+          echo "4. 配置如下："
           echo "   - Name: remotedesk-signaling"
           echo "   - Root Directory: signaling/"
           echo "   - Build Command: pip install -r requirements.txt"
-          echo "   - Start Command: python server.py"
-          echo "   - Environment: Python 3.11"
+          echo "   - Start Command: python start_server.py"
+          echo "   - Environment: Python 3"
+          echo "   - Instance Type: Free"
+          echo ""
           echo "5. 点击 Create Web Service"
           echo ""
-          echo "✓ 完成后会得到URL: https://remotedesk-signaling.onrender.com"
+          echo "✓ 完成后告诉我URL，我来测试连接！"
