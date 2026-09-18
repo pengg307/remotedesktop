@@ -122,6 +122,11 @@ class InputSimulator:
             self._send_mouse_input(0x0008, 0, 0)
             time.sleep(0.01)
             self._send_mouse_input(0x0010, 0, 0)
+
+    def mouse_click_at(self, x: int, y: int, button: str = 'left'):
+        """在指定坐标点击"""
+        self.mouse_move(x, y)
+        self.mouse_click(button)
     
     def mouse_wheel(self, delta: int):
         self._send_mouse_input(0x0800, 0, delta)
@@ -306,11 +311,21 @@ class HostServer:
                 
                 if data['type'] == 'input':
                     action = data['data'].get('action')
+                    x = data['data'].get('x', 0)
+                    y = data['data'].get('y', 0)
+                    
                     if action == 'mouse_move':
-                        self.input_sim.mouse_move(data['data'].get('x', 0), data['data'].get('y', 0))
+                        # 将百分比坐标转换为屏幕坐标
+                        screen_x = int(x * self.input_sim.screen_info[0] / 100)
+                        screen_y = int(y * self.input_sim.screen_info[1] / 100)
+                        self.input_sim.mouse_move(screen_x, screen_y)
+                        
                     elif action == 'mouse_click':
-                        self.input_sim.mouse_click(data['data'].get('button', 'left'))
-                    # ... 其他输入处理
+                        screen_x = int(x * self.input_sim.screen_info[0] / 100)
+                        screen_y = int(y * self.input_sim.screen_info[1] / 100)
+                        self.input_sim.mouse_click_at(screen_x, screen_y)
+                        
+                    logger.debug(f"输入事件: {action} at ({x}, {y})")
                 
             except asyncio.TimeoutError:
                 continue
@@ -353,14 +368,16 @@ async def main():
         # 3. 接收Answer
         await host.receive_answer()
         
-        # 4. 处理ICE候选
+        # 4. 处理ICE候选和输入
         ice_task = asyncio.create_task(host.handle_ice_candidates())
+        input_task = asyncio.create_task(host.handle_input())
         
         # 5. 主循环
         while host.is_running:
             await asyncio.sleep(1)
         
         ice_task.cancel()
+        input_task.cancel()
         
     except KeyboardInterrupt:
         logger.info("[!] 用户中断")

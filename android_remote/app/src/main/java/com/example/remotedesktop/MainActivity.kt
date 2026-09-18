@@ -5,8 +5,12 @@ import android.content.pm.PackageManager
 import android.opengl.EGL14
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.view.SurfaceHolder
+import android.view.SurfaceView
+import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
 import android.widget.*
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
@@ -48,6 +52,23 @@ class MainActivity : AppCompatActivity() {
         // 设置视频显示
         videoView.init(getEGLContext(), null)
         videoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+        
+        // 全屏触摸覆盖层
+        val touchOverlay = View(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            isClickable = true
+            isFocusable = true
+            
+            setOnTouchListener { _, event ->
+                handleTouchEvent(event)
+                true
+            }
+        }
+        findViewById<ViewGroup>(android.R.id.content).addView(touchOverlay)
         
         // 加载保存的URL
         val prefs = getSharedPreferences("settings", MODE_PRIVATE)
@@ -263,6 +284,58 @@ class MainActivity : AppCompatActivity() {
         }, sdp)
     }
     
+    // 触摸事件处理
+    private var lastTouchX = 0f
+    private var lastTouchY = 0f
+    private var videoWidth = 0
+    private var videoHeight = 0
+    
+    private fun handleTouchEvent(event: MotionEvent): Boolean {
+        if (!this::signalingClient.isInitialized || signalingClient == null) return false
+        
+        when (event.action and MotionEvent.ACTION_MASK) {
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                // 触摸开始 - 发送坐标
+                val (x, y) = scaleCoordinates(event.x, event.y)
+                sendInputEvent("mouse_move", x, y)
+            }
+            MotionEvent.ACTION_MOVE -> {
+                // 移动 - 需要缩放坐标到屏幕比例
+                val (x, y) = scaleCoordinates(event.x, event.y)
+                sendInputEvent("mouse_move", x, y)
+                lastTouchX = x
+                lastTouchY = y
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                // 触摸结束 - 点击
+                val (x, y) = scaleCoordinates(lastTouchX, lastTouchY)
+                sendInputEvent("mouse_click", x, y)
+            }
+        }
+        return true
+    }
+    
+    private fun scaleCoordinates(x: Float, y: Float): Pair<Float, Float> {
+        // 假设视频全屏显示，直接返回触摸坐标
+        // 后续可根据实际视频尺寸调整
+        val screenWidth = resources.displayMetrics.widthPixels
+        val screenHeight = resources.displayMetrics.heightPixels
+        return Pair(
+            (x / screenWidth * 100).toFloat(),
+            (y / screenHeight * 100).toFloat()
+        )
+    }
+    
+    private fun sendInputEvent(action: String, x: Float, y: Float) {
+        try {
+            val msg = """{"type":"input","data":{"action":"$action","x":$x,"y":$y}}"""
+            signalingClient?.sendInput(msg)
+            Log.d(TAG, "发送输入事件: $action at ($x, $y)")
+        } catch (e: Exception) {
+            Log.e(TAG, "发送输入失败: ${e.message}")
+        }
+    }
+    
     private fun disconnect() {
         Log.d(TAG, "断开连接")
         peerConnection?.dispose()
@@ -464,6 +537,10 @@ class SignalingClient(
     fun sendIceCandidate(candidate: IceCandidate) {
         val msg = """{"type":"ice_candidate","data":{"candidate":"${candidate.sdp}","sdpMid":"${candidate.sdpMid}","sdpMLineIndex":${candidate.sdpMLineIndex}}"""
         send(msg)
+    }
+    
+    fun sendInput(message: String) {
+        send(message)
     }
     
     private fun send(message: String) {

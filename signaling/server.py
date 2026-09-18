@@ -76,12 +76,15 @@ class Room:
 class MessageType(str, Enum):
     # 握手
     JOIN_ACK = "join_ack"      # 加入成功确认
-    
+
     # WebRTC信令
     SDP_OFFER = "sdp_offer"    # 发送SDP Offer
     SDP_ANSWER = "sdp_answer"  # 发送SDP Answer
     ICE_CANDIDATE = "ice_candidate"  # ICE候选
-    
+
+    # 输入控制
+    INPUT = "input"            # 触摸/鼠标事件
+
     # 状态
     CONNECTING = "connecting"  # 正在连接
     CONNECTED = "connected"    # 连接成功
@@ -245,6 +248,14 @@ class SignalingServer:
                     "data": {}
                 })
         
+        elif msg_type == MessageType.INPUT.value:
+            # 触摸事件转发（Client → Host）
+            if room.client_ws == ws and room.host_ws and room.host_ws in room._clients:
+                await room.host_ws.send_json({
+                    "type": MessageType.INPUT.value,
+                    "data": data
+                })
+
         elif msg_type == MessageType.CLOSED.value:
             room.state = "closed"
     
