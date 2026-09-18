@@ -18,7 +18,7 @@
 - ✅ 输入模拟模块 (ctypes)
 - ✅ WebRTC集成框架 (aiortc)
 - ✅ 信令客户端集成
-- ⏳ 待接入云端信令
+- ✅ 触摸事件接收处理
 
 **文件位置**: `E:/aiprojects/RemoteDesktop/pyhost/`
 
@@ -26,8 +26,8 @@
 - ✅ 基础UI框架
 - ✅ Token输入界面
 - ✅ 权限管理框架
-- ⏳ 待实现WebRTC视频显示
-- ⏳ 待实现触摸控制
+- ✅ WebRTC视频显示
+- ✅ 触摸控制发送
 
 **文件位置**: `E:/aiprojects/RemoteDesktop/android_remote/`
 
