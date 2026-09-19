@@ -196,6 +196,7 @@ class MainActivity : AppCompatActivity() {
 
             override fun onDataChannel(channel: DataChannel) {}
             override fun onRenegotiationNeeded() {}
+            override fun onIceConnectionReceivingChange(receiving: Boolean) {}
         })
 
         val sdp = SessionDescription(SessionDescription.Type.OFFER, offer)
@@ -450,7 +451,7 @@ class SignalingClient(
                 callback?.onConnectionStateChanged("disconnected")
             }
 
-            override fun onFailure(websocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response) {
+            override fun onFailure(websocket: okhttp3.WebSocket, t: Throwable, response: okhttp3.Response?) {
                 Log.e(TAG, "WebSocket错误: ${t.message}")
                 callback?.onError(t.message ?: "连接失败")
             }

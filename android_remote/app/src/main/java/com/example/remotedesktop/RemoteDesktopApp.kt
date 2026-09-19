@@ -9,7 +9,6 @@ class RemoteDesktopApp : Application() {
         super.onCreate()
 
         val options = PeerConnectionFactory.InitializationOptions.builder()
-            .setEnableInternalTracer(true)
             .createInitializationOptions()
         PeerConnectionFactory.initialize(options)
     }
