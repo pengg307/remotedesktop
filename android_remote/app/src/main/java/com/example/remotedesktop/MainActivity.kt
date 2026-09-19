@@ -48,7 +48,7 @@ class MainActivity : AppCompatActivity() {
         videoView.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
 
         val touchOverlay = View(this).apply {
-            setBackgroundColor(Color.TRANSPARENT)
+            setBackgroundColor(android.graphics.Color.TRANSPARENT)
             layoutParams = ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -183,34 +183,30 @@ class MainActivity : AppCompatActivity() {
 
             override fun onIceCandidatesRemoved(candidates: Array<out IceCandidate>) {}
 
-            override fun onAddTrack(track: MediaStreamTrack, streams: Array<MediaStream>) {
-                Log.d(TAG, "添加轨道: ${track.kind}")
-                if (track.kind == "video") {
-                    track.setEnabled(true)
-                    videoView.setMirror(false)
-                    track.addSink(videoView)
+            override fun onAddStream(stream: MediaStream) {
+                Log.d(TAG, "添加流: ${stream.videoTracks.size} 视频")
+                if (stream.videoTracks.isNotEmpty()) {
+                    stream.videoTracks[0].addSink(videoView)
                 }
             }
 
-            override fun onRemoveTrack(track: MediaStreamTrack) {
-                Log.d(TAG, "移除轨道")
+            override fun onRemoveStream(stream: MediaStream) {
+                Log.d(TAG, "移除流")
             }
 
-            override fun onRemoveStream(stream: MediaStream) {}
             override fun onDataChannel(channel: DataChannel) {}
             override fun onRenegotiationNeeded() {}
-            override fun onIceConnectionReceivingChange(receiving: Boolean) {}
         })
 
         val sdp = SessionDescription(SessionDescription.Type.OFFER, offer)
         peerConnection?.setRemoteDescription(object : SdpObserver {
-            override fun onCreateSuccess() {}
+            override fun onCreateSuccess(sdp: SessionDescription?) {}
             override fun onSetSuccess() {
                 Log.d(TAG, "设置远程描述成功")
                 peerConnection?.createAnswer(object : SdpObserver {
-                    override fun onCreateSuccess(sdp: SessionDescription) {
+                    override fun onCreateSuccess(sdp: SessionDescription?) {
                         Log.d(TAG, "创建Answer成功")
-                        signalingClient?.sendSdpAnswer(sdp.description)
+                        signalingClient?.sendSdpAnswer(sdp?.description ?: "")
                         peerConnection?.setLocalDescription(this, sdp)
                     }
                     override fun onSetSuccess() {}
@@ -340,6 +336,10 @@ class SignalingClient(
     private val signalingUrl: String,
     private val token: String
 ) {
+    companion object {
+        private const val TAG = "SignalingClient"
+    }
+
     interface Callback {
         fun onJoined(roomId: String)
         fun onSdpOffer(offer: String)
@@ -359,7 +359,7 @@ class SignalingClient(
         .build()
 
     fun setCallback(cb: Callback) { callback = cb }
-    fun isConnected() = ws != null && isConnecting
+    val isConnected: Boolean get() = ws != null && isConnecting
 
     fun start() {
         Log.i(TAG, "启动信令连接到: $signalingUrl")

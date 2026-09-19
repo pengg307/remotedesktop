@@ -4,12 +4,12 @@ import android.app.Application
 import org.webrtc.PeerConnectionFactory
 
 class RemoteDesktopApp : Application() {
-    
+
     override fun onCreate() {
         super.onCreate()
-        
-        // 初始化WebRTC
+
         val options = PeerConnectionFactory.InitializationOptions.builder()
+            .setEnableInternalTracer(true)
             .createInitializationOptions()
         PeerConnectionFactory.initialize(options)
     }
