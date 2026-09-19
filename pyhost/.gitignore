@@ -1,1 +1,4 @@
-01a82499f97e4d2b90c870641c270446a1754380'
+__pycache__/
+*.pyc
+offer_*.json
+answer_*.json
