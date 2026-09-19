@@ -1,6 +1,2 @@
-.gitmodules
-flutter_remote/.git
-flutter_remote/.gitignore
-*.dart_tool/
-*.packages
-pubspec.lock
+__pycache__/
+pyhost/__pycache__/
