@@ -2,7 +2,6 @@ package com.example.remotedesktop
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.opengl.EGL14
 import android.os.Bundle
 import android.util.Log
 import android.view.MotionEvent
