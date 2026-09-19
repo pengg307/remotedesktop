@@ -1,6 +1,7 @@
 """
-Windows远程桌面主机 - 信令服务器版本
-功能：屏幕捕获 + WebRTC + 输入模拟 + 云端信令
+Windows远程桌面主机 - 内置信令服务器模式
+功能：屏幕捕获 + WebRTC + 输入模拟 + 本地信令服务器
+适用于Tailscale内网环境
 """
 import asyncio
 import json
@@ -9,13 +10,19 @@ import time
 import sys
 import os
 from typing import Optional
+from datetime import datetime, timedelta
+import secrets
+import string
 
 import mss
-import websockets
 from aiortc import RTCPeerConnection, RTCSessionDescription
-from aiortc.contrib.media import MediaPlayer
 from av import VideoFrame
 import numpy as np
+import websockets
+import uvicorn
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 logging.basicConfig(
     level=logging.INFO,
@@ -43,14 +50,14 @@ class ScreenCapture:
         else:
             monitor = monitors[0] if monitors else {'left': 0, 'top': 0, 'width': 1920, 'height': 1080}
         
-        return {
+        return {\
             'width': int(monitor.get('width', 1920)),
             'height': int(monitor.get('height', 1080)),
             'left': int(monitor.get('left', 0)),
             'top': int(monitor.get('top', 0)),
         }
     
-    def capture(self, quality: int = 85) -> tuple[bytes, int]:
+    def capture(self, quality: int = 85) -> tuple:
         """捕获屏幕并压缩为JPEG"""
         start = time.perf_counter()
         screenshot = self.mss.grab({
@@ -99,293 +106,336 @@ class InputSimulator:
         self.user32 = __import__('ctypes').windll.user32
         self.screen_info = self._get_screen_size()
     
-    def _get_screen_size(self) -> tuple[int, int]:
+    def _get_screen_size(self) -> tuple:
+        """获取屏幕尺寸"""
         width = self.user32.GetSystemMetrics(0)
         height = self.user32.GetSystemMetrics(1)
         return (width, height)
     
-    def mouse_move(self, x: int, y: int):
-        abs_x = int(x * 65535 / self.screen_info[0])
-        abs_y = int(y * 65535 / self.screen_info[1])
-        self._send_mouse_input(0x0001 | 0x8000, abs_x, abs_y)
+    def move_mouse(self, x: float, y: float):
+        """移动鼠标 (0-100坐标)"""
+        sx = int(x / 100 * self.screen_info[0])
+        sy = int(y / 100 * self.screen_info[1])
+        self.user32.SetCursorPos(sx, sy)
     
-    def mouse_click(self, button: str = 'left', double_click: bool = False):
-        if button == 'left':
-            flags = 0x0002
-            self._send_mouse_input(flags, 0, 0)
-            if double_click:
-                time.sleep(0.01)
-                self._send_mouse_input(flags, 0, 0)
-            time.sleep(0.01)
-            self._send_mouse_input(0x0004, 0, 0)
-        elif button == 'right':
-            self._send_mouse_input(0x0008, 0, 0)
-            time.sleep(0.01)
-            self._send_mouse_input(0x0010, 0, 0)
-
-    def mouse_click_at(self, x: int, y: int, button: str = 'left'):
-        """在指定坐标点击"""
-        self.mouse_move(x, y)
-        self.mouse_click(button)
+    def click(self, x: float, y: float):
+        """点击鼠标"""
+        self.move_mouse(x, y)
+        self.user32.mouse_event(0x0002, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTDOWN
+        time.sleep(0.05)
+        self.user32.mouse_event(0x0004, 0, 0, 0, 0)  # MOUSEEVENTF_LEFTUP
     
-    def mouse_wheel(self, delta: int):
-        self._send_mouse_input(0x0800, 0, delta)
-    
-    def key_press(self, key: str, press: bool = True):
-        # 简化版
-        pass
-    
-    def _send_mouse_input(self, flags: int, dx: int, dy: int):
-        self.user32.mouse_event(flags, dx, dy, 0, 0)
+    def right_click(self, x: float, y: float):
+        """右键点击"""
+        self.move_mouse(x, y)
+        self.user32.mouse_event(0x0008, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTDOWN
+        time.sleep(0.05)
+        self.user32.mouse_event(0x0010, 0, 0, 0, 0)  # MOUSEEVENTF_RIGHTUP
 
 
-class RemoteVideoTrack:
-    """自定义WebRTC视频轨道"""
+def generate_token(length: int = 6) -> str:
+    """生成6位Token，排除混淆字符"""
+    chars = string.ascii_uppercase + string.digits
+    safe_chars = [c for c in chars if c not in '0O1Il']
+    return ''.join(secrets.choice(safe_chars) for _ in range(length))
+
+
+class SignalingServer:
+    """本地信令服务器"""
     
-    def __init__(self, capture: ScreenCapture):
-        self.capture = capture
-        self._queue = asyncio.Queue()
-        self._running = True
-        self._task = None
-        self.kind = 'video'
+    def __init__(self, host: 'RemoteDesktopHost'):
+        self.host = host
+        self.app = FastAPI(title="RemoteDesktop Local Signaling")
+        self.app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        self._setup_routes()
+        self.server = None
     
-    async def recv(self):
-        return await self._queue.get()
-    
-    def start(self):
-        self._task = asyncio.create_task(self._capture_loop())
-    
-    async def _capture_loop(self):
-        """捕获循环"""
-        while self._running:
+    def _setup_routes(self):
+        """设置路由"""
+        
+        @self.app.post("/api/token")
+        async def create_token():
+            """创建新连接Token"""
+            token = generate_token()
+            room_id = secrets.token_hex(8)
+            
+            self.host.rooms[room_id] = {
+                "token": token,
+                "created_at": datetime.now().isoformat(),
+                "expires_at": (datetime.now() + timedelta(minutes=30)).isoformat(),
+                "host_ws": None,
+                "client_ws": None,
+            }
+            self.host.token_to_room[token] = room_id
+            
+            return {
+                "token": token,
+                "room_id": room_id,
+                "expires_in_minutes": 30
+            }
+        
+        @self.app.get("/api/room/{room_id}")
+        async def get_room_status(room_id: str):
+            """查询房间状态"""
+            if room_id not in self.host.rooms:
+                raise HTTPException(status_code=404, detail="Room not found")
+            return self.host.rooms[room_id]
+        
+        @self.app.websocket("/ws/{room_id}")
+        async def websocket_endpoint(websocket: WebSocket, room_id: str):
+            """WebSocket信令通道"""
+            if room_id not in self.host.rooms:
+                await websocket.close(code=4004, reason="Invalid room")
+                return
+            
+            await websocket.accept()
+            room = self.host.rooms[room_id]
+            
+            # 判断角色
+            if room["host_ws"] is None:
+                room["host_ws"] = websocket
+                logger.info(f"[Room {room_id}] Host connected")
+                role = "host"
+            else:
+                room["client_ws"] = websocket
+                logger.info(f"[Room {room_id}] Client connected")
+                role = "client"
+                # 通知host有客户端连接
+                await room["host_ws"].send_json({
+                    "type": "client_connected",
+                    "data": {"room_id": room_id}
+                })
+            
             try:
-                jpeg_data, _ = self.capture.capture()
-                
-                # 解码JPEG为numpy数组
-                arr = np.frombuffer(jpeg_data, dtype=np.uint8)
-                img = __import__('cv2').imdecode(arr, __import__('cv2').IMREAD_COLOR)
-                
-                if img is not None:
-                    # 转换为YUV420P帧
-                    frame = VideoFrame(
-                        width=img.shape[1],
-                        height=img.shape[0],
-                        type='yuv420p'
-                    )
-                    # 拷贝数据
-                    frame.planes[0].update(img[:, :, 2].tobytes())  # Y
-                    frame.planes[1].update(img[:, :, 1].tobytes())  # U
-                    frame.planes[2].update(img[:, :, 0].tobytes())  # V
-                    await self._queue.put(frame)
-                
-                await asyncio.sleep(0.033)  # 30 FPS
+                while True:
+                    data = await websocket.receive_json()
+                    
+                    # 转发消息给另一端
+                    other_ws = room["client_ws"] if role == "host" else room["host_ws"]
+                    if other_ws and data.get("type") not in ["sdp_offer", "sdp_answer", "ice_candidate"]:
+                        # 输入事件直接转发
+                        if data.get("type") == "input":
+                            await other_ws.send_json(data)
+                        else:
+                            await other_ws.send_json(data)
+                    
+                    logger.debug(f"[Room {room_id}] Forwarded: {data.get('type')}")
+                    
+            except WebSocketDisconnect:
+                logger.info(f"[Room {room_id}] {role} disconnected")
+                if role == "host":
+                    room["host_ws"] = None
+                else:
+                    room["client_ws"] = None
+            
             except Exception as e:
-                logger.error(f"Capture error: {e}")
-                await asyncio.sleep(0.1)
+                logger.error(f"[Room {room_id}] Error: {e}")
+                await websocket.close(code=1011, reason=str(e))
     
-    def stop(self):
-        self._running = False
+    async def start(self, host: str = "0.0.0.0", port: int = 8000):
+        """启动服务器"""
+        config = uvicorn.Config(self.app, host=host, port=port, log_level="info")
+        self.server = uvicorn.Server(config)
+        await self.server.serve()
+    
+    async def stop(self):
+        """停止服务器"""
+        if self.server:
+            self.server.should_exit = True
 
 
-class HostServer:
-    """主机服务 - 连接云端信令服务器"""
+class RemoteDesktopHost:
+    """远程桌面主机"""
     
-    def __init__(self, signaling_url: str, token: str):
-        self.signaling_url = signaling_url.rstrip('/')
-        self.token = token
-        self.room_id = None
-        self.ws = None
-        self.pc: Optional[RTCPeerConnection] = None
+    def __init__(self, token: str = None, room_id: str = None):
+        self.token = token or generate_token()
+        self.room_id = room_id or secrets.token_hex(8)
+        self.signaling_url = None  # 动态获取
+        
+        # 信令服务器
+        self.signaling_server = SignalingServer(self)
+        self.rooms: dict = {}
+        self.token_to_room: dict = {}
+        
+        # 组件
         self.capture = ScreenCapture()
         self.input_sim = InputSimulator()
+        
+        # WebRTC
+        self.pc: Optional[RTCPeerConnection] = None
         self.video_track = None
+        self.audio_track = None
         self.is_running = False
         
-    async def connect_to_signaling(self):
-        """连接到信令服务器获取房间"""
-        logger.info(f"[*] 连接信令服务器: {self.signaling_url}")
-        import aiohttp
-        
-        async with aiohttp.ClientSession() as session:
-            # 获取token和room_id
-            async with session.post(f"{self.signaling_url}/api/token") as resp:
-                result = await resp.json()
-                self.room_id = result['room_id']
-                self.token = result['token']
-                stun_servers = result.get('stun_servers', [])
-                logger.info(f"[+] 房间: {self.room_id}, Token: {self.token}")
-                logger.info(f"[+] STUN: {stun_servers}")
-            
-            # 连接WebSocket
-            ws_url = f"wss://{self.signaling_url.replace('https://', '').replace('http://', '')}/ws/{self.room_id}?role=host"
-            logger.info(f"[*] WebSocket: {ws_url}")
-            
-            self.ws = await websockets.connect(ws_url)
-            logger.info(f"[+] WebSocket已连接")
-            
-            # 接收join_ack
-            msg = await asyncio.wait_for(self.ws.recv(), timeout=10)
-            data = json.loads(msg)
-            assert data['type'] == 'join_ack', f"Unexpected: {data}"
-            logger.info(f"[+] 加入成功，角色: {data['data']['role']}")
-            
-            return stun_servers
+        # 保存当前视频帧用于输入坐标映射
+        self.current_width = 1280
+        self.current_height = 720
     
-    async def start_webrtc(self, stun_servers: list):
-        """启动WebRTC"""
+    async def start_signaling(self):
+        """启动信令服务器"""
+        import socket
+        # 获取本机IP（Tailscale IP优先）
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('10.0.0.1', 1))  # 不实际发送，只是获取路由接口IP
+            local_ip = s.getsockname()[0]
+        except Exception:
+            local_ip = '127.0.0.1'
+        finally:
+            s.close()
+        
+        self.signaling_url = f"http://{local_ip}:8000"
+        
+        # 将房间注册到token
+        self.rooms[self.room_id] = {
+            "token": self.token,
+            "created_at": datetime.now().isoformat(),
+            "expires_at": (datetime.now() + timedelta(minutes=30)).isoformat(),
+            "host_ws": None,
+            "client_ws": None,
+        }
+        self.token_to_room[self.token] = self.room_id
+        
+        logger.info(f"信令服务器启动: {self.signaling_url}")
+        logger.info(f"Token: {self.token}")
+        logger.info(f"房间ID: {self.room_id}")
+        
+        # 在后台启动
+        asyncio.create_task(self.signaling_server.start(host="0.0.0.0", port=8000))
+    
+    async def create_offer(self) -> str:
+        """创建WebRTC Offer"""
         self.pc = RTCPeerConnection()
         
-        # 添加视频轨道
-        self.video_track = RemoteVideoTrack(self.capture)
+        # 创建视频轨道
+        self.video_track = VideoStreamTrack(self.capture)
         self.pc.addTrack(self.video_track)
         
-        # 配置ICE服务器
-        ice_servers = [{'url': s} for s in stun_servers]
-        if ice_servers:
-            self.pc.setConfiguration({'iceServers': ice_servers})
-        
-        logger.info(f"[+] WebRTC配置完成，创建Offer...")
-        
-        # 创建Offer
+        # 创建SDP Offer
         offer = await self.pc.createOffer()
         await self.pc.setLocalDescription(offer)
         
-        # 发送SDP Offer
-        await self.ws.send(json.dumps({
-            "type": "sdp_offer",
-            "data": {"sdp": offer.sdp}
-        }))
-        logger.info(f"[→] 发送SDP Offer")
-        
-        return offer
+        return offer.sdp
     
-    async def receive_answer(self):
-        """接收SDP Answer"""
-        msg = await asyncio.wait_for(self.ws.recv(), timeout=30)
-        data = json.loads(msg)
-        
-        if data['type'] != 'sdp_answer':
-            raise RuntimeError(f"Expected sdp_answer, got {data['type']}")
-        
-        answer_sdp = data['data']['sdp']
-        answer = RTCSessionDescription(sdp=answer_sdp, type='answer')
+    async def set_answer(self, answer_sdp: str):
+        """设置Answer"""
+        answer = RTCSessionDescription(sdp=answer_sdp, type="answer")
         await self.pc.setRemoteDescription(answer)
-        
-        logger.info(f"[+] 收到SDP Answer，开始建立连接...")
-        self.is_running = True
-        
-        # 开始捕获
-        self.video_track.start()
-        
-        # 发送connecting
-        await self.ws.send(json.dumps({"type": "connecting", "data": {}}))
-        
-        return True
-    
-    async def handle_ice_candidates(self):
-        """处理ICE候选"""
-        while self.is_running:
-            try:
-                msg = await asyncio.wait_for(self.ws.recv(), timeout=1)
-                data = json.loads(msg)
-                
-                if data['type'] == 'ice_candidate':
-                    candidate = data['data'].get('candidate')
-                    if candidate:
-                        await self.pc.addIceCandidate(candidate)
-                        logger.info(f"[←] 收到ICE候选")
-                
-                elif data['type'] == 'closed':
-                    logger.info(f"[!] 对方已断开")
-                    break
-                    
-            except asyncio.TimeoutError:
-                continue
-    
-    async def handle_input(self):
-        """处理输入事件（如果需要通过信令服务器转发）"""
-        while self.is_running:
-            try:
-                msg = await asyncio.wait_for(self.ws.recv(), timeout=1)
-                data = json.loads(msg)
-                
-                if data['type'] == 'input':
-                    action = data['data'].get('action')
-                    x = data['data'].get('x', 0)
-                    y = data['data'].get('y', 0)
-                    
-                    if action == 'mouse_move':
-                        # 将百分比坐标转换为屏幕坐标
-                        screen_x = int(x * self.input_sim.screen_info[0] / 100)
-                        screen_y = int(y * self.input_sim.screen_info[1] / 100)
-                        self.input_sim.mouse_move(screen_x, screen_y)
-                        
-                    elif action == 'mouse_click':
-                        screen_x = int(x * self.input_sim.screen_info[0] / 100)
-                        screen_y = int(y * self.input_sim.screen_info[1] / 100)
-                        self.input_sim.mouse_click_at(screen_x, screen_y)
-                        
-                    logger.debug(f"输入事件: {action} at ({x}, {y})")
-                
-            except asyncio.TimeoutError:
-                continue
+        logger.info("WebRTC连接已建立")
     
     async def close(self):
         """关闭连接"""
         self.is_running = False
-        if self.video_track:
-            self.video_track.stop()
         if self.pc:
             await self.pc.close()
-        if self.ws:
-            await self.ws.close()
-        logger.info(f"[-] 已断开连接")
+        if self.signaling_server.server:
+            await self.signaling_server.stop()
+    
+    def handle_input(self, data: dict):
+        """处理输入事件"""
+        action = data.get("action", "")
+        x = data.get("x", 0)
+        y = data.get("y", 0)
+        
+        logger.debug(f"输入事件: {action} ({x}, {y})")
+        
+        if action == "mouse_move":
+            self.input_sim.move_mouse(x, y)
+        elif action == "mouse_click":
+            self.input_sim.click(x, y)
+        elif action == "right_click":
+            self.input_sim.right_click(x, y)
 
 
-async def main():
+class VideoStreamTrack:
+    """视频流轨道"""
+    
+    def __init__(self, capture: ScreenCapture):
+        self.capture = capture
+        self._kind = "video"
+    
+    @property
+    def kind(self):
+        return self._kind
+    
+    async def recv(self) -> VideoFrame:
+        """捕获并返回视频帧"""
+        jpeg_data, elapsed = self.capture.capture()
+        
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(jpeg_data))
+        
+        # 转换为RGB
+        img_rgb = img.convert('RGB')
+        frame_data = img_rgb.tobytes()
+        
+        # 创建VideoFrame
+        frame = VideoFrame.from_ndarray(
+            np.frombuffer(frame_data, dtype=np.uint8).reshape(
+                img_rgb.height, img_rgb.width, 3
+            ),
+            format='rgb24'
+        )
+        
+        # 设置时间戳
+        frame.time_base = 1/30
+        return frame
+
+
+async def main(token: str = None):
     """主函数"""
-    import argparse
+    token = token or generate_token()
     
-    parser = argparse.ArgumentParser(description="Windows远程桌面主机")
-    parser.add_argument("--signaling", required=True, help="信令服务器URL，如 https://xxx.railway.app")
-    args = parser.parse_args()
+    host = RemoteDesktopHost(token)
     
-    logger.info("=" * 60)
-    logger.info("  Remote Desktop Host (Signaling Server)")
-    logger.info("=" * 60)
-    logger.info(f"  信令服务器: {args.signaling}")
-    logger.info("=" * 60)
+    # 启动信令服务器
+    await host.start_signaling()
     
-    host = HostServer(args.signaling, "")
+    # 显示连接信息
+    print("\n" + "="*50)
+    print("远程桌面主机已启动")
+    print("="*50)
+    print(f"信令地址: {host.signaling_url}")
+    print(f"Token: {host.token}")
+    print(f"请用Android APP输入以上信息连接")
+    print("="*50 + "\n")
     
     try:
-        # 1. 连接信令服务器
-        stun_servers = await host.connect_to_signaling()
+        # 创建WebRTC Offer
+        logger.info("Creating WebRTC offer...")
+        offer_sdp = await host.create_offer()
         
-        # 2. 启动WebRTC
-        await host.start_webrtc(stun_servers)
+        # 保存offer到文件
+        offer_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"offer_{host.token}.json")
+        with open(offer_path, 'w') as f:
+            json.dump({"sdp": offer_sdp, "type": "offer"}, f, indent=2)
+        logger.info(f"Offer saved to {offer_path}")
         
-        # 3. 接收Answer
-        await host.receive_answer()
+        # 等待Android端连接（通过信令服务器WebSocket）
+        logger.info("等待客户端连接...")
         
-        # 4. 处理ICE候选和输入
-        ice_task = asyncio.create_task(host.handle_ice_candidates())
-        input_task = asyncio.create_task(host.handle_input())
-        
-        # 5. 主循环
-        while host.is_running:
+        # 持续运行
+        while host.is_running or host.pc is None or host.pc.connectionState != 'closed':
             await asyncio.sleep(1)
-        
-        ice_task.cancel()
-        input_task.cancel()
-        
+            
     except KeyboardInterrupt:
-        logger.info("[!] 用户中断")
-    except Exception as e:
-        logger.error(f"[!] 错误: {e}", exc_info=True)
+        logger.info("Shutting down...")
     finally:
         await host.close()
+        logger.info("Host stopped.")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    import argparse
+    parser = argparse.ArgumentParser(description="Windows Remote Desktop Host")
+    parser.add_argument("--token", help="指定Token（可选，默认随机生成）")
+    
+    args = parser.parse_args()
+    asyncio.run(main(args.token))

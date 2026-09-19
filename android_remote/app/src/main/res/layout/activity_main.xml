@@ -18,7 +18,7 @@
             android:id="@+id/serverEditText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="信令服务器地址 (如 https://xxx.railway.app)"
+            android:hint="Windows Tailscale 地址（如 http://100.x.x.x:8000）"
             android:inputType="textUri"
             android:textSize="13sp"
             android:padding="10dp"

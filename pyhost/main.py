@@ -1,9 +1,10 @@
 """
 Windows远程桌面服务 - 主入口
-启动命令: uv run python main.py --token ABCD12
+启动命令: uv run python main.py
 """
 import argparse
 import asyncio
+import json
 import logging
 import sys
 import os
@@ -19,41 +20,42 @@ logging.basicConfig(
 logger = logging.getLogger("pyhost_main")
 
 
-async def main(token: str, room_id: str = None):
+async def main(token: str = None):
     """主函数"""
-    logger.info(f"Starting Remote Desktop Host")
-    logger.info(f"Token: {token}")
+    logger.info("Starting Remote Desktop Host (Local Signaling Mode)")
     
-    host = RemoteDesktopHost(token, room_id or "default")
+    host = RemoteDesktopHost(token)
+    
+    # 启动信令服务器
+    await host.start_signaling()
+    
+    # 显示连接信息
+    print("\n" + "="*50)
+    print("远程桌面主机已启动")
+    print("="*50)
+    print(f"信令地址: {host.signaling_url}")
+    print(f"Token: {host.token}")
+    print(f"房间ID: {host.room_id}")
+    print("="*50 + "\n")
     
     try:
+        # 创建WebRTC Offer
         logger.info("Creating WebRTC offer...")
         offer_sdp = await host.create_offer()
         
-        offer_path = os.path.join(os.path.dirname(__file__), f"offer_{token}.json")
+        # 保存offer到文件
+        offer_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), f"offer_{host.token}.json")
         with open(offer_path, 'w') as f:
-            f.write(offer_sdp)
-        
+            json.dump({"sdp": offer_sdp, "type": "offer"}, f, indent=2)
         logger.info(f"Offer saved to {offer_path}")
-        logger.info(f"Waiting for client to connect...")
-        logger.info(f"Use this token on Android app: {token}")
         
-        answer_path = os.path.join(os.path.dirname(__file__), f"answer_{token}.json")
-        
-        while not os.path.exists(answer_path):
-            await asyncio.sleep(0.5)
-        
-        with open(answer_path, 'r') as f:
-            answer_sdp = f.read()
-        
-        await host.set_answer(answer_sdp)
-        logger.info("WebRTC connection established!")
-        
+        # 启动视频捕获
         if host.video_track:
-            host.video_track.start_capturing()
+            host.video_track.start_capturing = True
         
         host.is_running = True
         
+        # 持续运行
         while host.is_running:
             await asyncio.sleep(1)
             
@@ -66,9 +68,7 @@ async def main(token: str, room_id: str = None):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Windows Remote Desktop Host")
-    parser.add_argument("--token", required=True, help="连接Token（6位）")
-    parser.add_argument("--room", help="房间ID（可选）")
+    parser.add_argument("--token", help="指定Token（可选，默认随机生成）")
     
     args = parser.parse_args()
-    
-    asyncio.run(main(args.token, args.room))
+    asyncio.run(main(args.token))
