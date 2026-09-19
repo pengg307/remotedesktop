@@ -45,12 +45,12 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.activity:activity-ktx:1.8.2'
     
-    // WebRTC
+    // WebRTC - from official Webrtc Maven repo
     implementation 'org.webrtc:google-webrtc:1.0.32006'
     
     // Networking
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'
-    implementation 'com.squareup.okhttp3:okio:3.6.0'
+    implementation 'com.squareup.okio:okio:3.6.0'
     
     // Coroutines
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
